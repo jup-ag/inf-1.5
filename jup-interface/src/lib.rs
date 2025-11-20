@@ -381,7 +381,7 @@ impl Amm for InfAmm {
 
     fn get_swap_and_account_metas(
         &self,
-        SwapParams {
+        swap_params @ SwapParams {
             swap_mode,
             in_amount,
             out_amount,
@@ -413,7 +413,7 @@ impl Amm for InfAmm {
         };
         let ix = self.inner.trade_ix(&args, limit_ty).map_err(FmtErr)?;
         let mut account_metas = vec![AccountMeta::new_readonly(Self::PROGRAM_ID, false)];
-        Ok(match ix {
+        let swap = match ix {
             Trade::AddLiquidity(ix) => {
                 let a = ix.to_full();
                 #[allow(deprecated)]
@@ -422,13 +422,10 @@ impl Amm for InfAmm {
                     add_liquidity_ix_is_signer(&ix.accs).seq(),
                     add_liquidity_ix_is_writer(&ix.accs).seq(),
                 ));
-                SwapAndAccountMetas {
-                    swap: Swap::SanctumSAddLiquidity {
-                        lst_value_calc_accs: a.lst_value_calc_accs,
-                        lst_index: a.lst_index,
-                    },
 
-                    account_metas,
+                Swap::SanctumSAddLiquidity {
+                    lst_value_calc_accs: a.lst_value_calc_accs,
+                    lst_index: a.lst_index,
                 }
             }
             Trade::RemoveLiquidity(ix) => {
@@ -439,13 +436,10 @@ impl Amm for InfAmm {
                     remove_liquidity_ix_is_signer(&ix.accs).seq(),
                     remove_liquidity_ix_is_writer(&ix.accs).seq(),
                 ));
-                SwapAndAccountMetas {
-                    swap: Swap::SanctumSRemoveLiquidity {
-                        lst_value_calc_accs: a.lst_value_calc_accs,
-                        lst_index: a.lst_index,
-                    },
 
-                    account_metas,
+                Swap::SanctumSRemoveLiquidity {
+                    lst_value_calc_accs: a.lst_value_calc_accs,
+                    lst_index: a.lst_index,
                 }
             }
             Trade::SwapExactIn(ix) => {
@@ -456,14 +450,12 @@ impl Amm for InfAmm {
                     swap_exact_in_ix_is_signer(&ix.accs).seq(),
                     swap_exact_in_ix_is_writer(&ix.accs).seq(),
                 ));
-                SwapAndAccountMetas {
-                    swap: Swap::SanctumS {
-                        src_lst_value_calc_accs: a.inp_lst_value_calc_accs,
-                        dst_lst_value_calc_accs: a.out_lst_value_calc_accs,
-                        src_lst_index: a.inp_lst_index,
-                        dst_lst_index: a.out_lst_index,
-                    },
-                    account_metas,
+
+                Swap::SanctumS {
+                    src_lst_value_calc_accs: a.inp_lst_value_calc_accs,
+                    dst_lst_value_calc_accs: a.out_lst_value_calc_accs,
+                    src_lst_index: a.inp_lst_index,
+                    dst_lst_index: a.out_lst_index,
                 }
             }
             Trade::SwapExactOut(ix) => {
@@ -474,16 +466,21 @@ impl Amm for InfAmm {
                     swap_exact_out_ix_is_signer(&ix.accs).seq(),
                     swap_exact_out_ix_is_writer(&ix.accs).seq(),
                 ));
-                SwapAndAccountMetas {
-                    swap: Swap::SanctumS {
-                        src_lst_value_calc_accs: a.inp_lst_value_calc_accs,
-                        dst_lst_value_calc_accs: a.out_lst_value_calc_accs,
-                        src_lst_index: a.inp_lst_index,
-                        dst_lst_index: a.out_lst_index,
-                    },
-                    account_metas,
+
+                Swap::SanctumS {
+                    src_lst_value_calc_accs: a.inp_lst_value_calc_accs,
+                    dst_lst_value_calc_accs: a.out_lst_value_calc_accs,
+                    src_lst_index: a.inp_lst_index,
+                    dst_lst_index: a.out_lst_index,
                 }
             }
+        };
+
+        account_metas.push(swap_params.placeholder_account_meta());
+
+        Ok(SwapAndAccountMetas {
+            swap,
+            account_metas,
         })
     }
 
